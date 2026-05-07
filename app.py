@@ -1,11 +1,19 @@
 import os
+import time
+import threading
+import uuid
+import smtplib
+import textwrap
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
 from datetime import date, timedelta
 
+from google import genai
 from dotenv import load_dotenv
 load_dotenv()
 
 import streamlit as st
-from google import genai
 
 # ── Page configuration ──────────────────────────────────────────────────────
 st.set_page_config(
@@ -128,27 +136,110 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ── Gemini API configuration ─────────────────────────────────────────────────
+# ── Gemini Deep Research configuration ──────────────────────────────────────
 SYSTEM_PROMPT = (
     "Eres un asistente de investigación para Miquel, un señor de 85 años. "
-    "Tu tarea es realizar una búsqueda exhaustiva, verificar hechos y redactar "
-    "un informe en español claro, con frases cortas y conclusiones directas. "
+    "Redacta siempre en español, con frases cortas y conclusiones directas. "
     "Evita el lenguaje técnico innecesario. "
-    "Estructura el informe con secciones numeradas y un breve resumen final."
+    "Estructura el informe con secciones numeradas, tablas donde sea útil, "
+    "y un breve resumen final. Incluye las fuentes consultadas al final."
 )
 
-# Resolve API key: env var → st.secrets
-api_key = os.environ.get("GEMINI_API_KEY", "")
-if not api_key:
+_GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+if not _GEMINI_API_KEY:
     try:
-        api_key = st.secrets["GEMINI_API_KEY"]
+        _GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
     except Exception:
-        api_key = ""
+        pass
 
-if api_key:
-    client = genai.Client(api_key=api_key)
-else:
-    client = None
+_genai_client = genai.Client(api_key=_GEMINI_API_KEY) if _GEMINI_API_KEY else None
+
+# ── Email configuration ───────────────────────────────────────────────────────
+_EMAIL_SENDER   = os.environ.get("EMAIL_SENDER", "")
+_EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD", "")
+if not _EMAIL_SENDER:
+    try:
+        _EMAIL_SENDER = st.secrets["EMAIL_SENDER"]
+    except Exception:
+        pass
+if not _EMAIL_PASSWORD:
+    try:
+        _EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
+    except Exception:
+        pass
+
+_EMAIL_RECIPIENT = "martamateu18@gmail.com"
+
+
+def _send_report_email(subject: str, body: str, pdf_bytes: bytes | None = None):
+    """Envía el informe por email. Silencioso si no hay credenciales."""
+    if not _EMAIL_SENDER or not _EMAIL_PASSWORD:
+        return
+    try:
+        msg = MIMEMultipart("mixed")
+        msg["From"]    = _EMAIL_SENDER
+        msg["To"]      = _EMAIL_RECIPIENT
+        msg["Subject"] = f"📋 Informe: {subject[:80]}"
+
+        # Cuerpo HTML con el texto del informe
+        html_body = "<html><body style='font-family:Georgia,serif;font-size:16px;line-height:1.8;'>"
+        html_body += f"<h2>📋 {subject}</h2>"
+        for line in body.splitlines():
+            html_body += f"<p>{line}</p>" if line.strip() else "<br>"
+        html_body += "</body></html>"
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+        # PDF adjunto si está disponible
+        if pdf_bytes:
+            att = MIMEApplication(pdf_bytes, _subtype="pdf")
+            att.add_header("Content-Disposition", "attachment", filename="informe.pdf")
+            msg.attach(att)
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
+            server.login(_EMAIL_SENDER, _EMAIL_PASSWORD)
+            server.sendmail(_EMAIL_SENDER, _EMAIL_RECIPIENT, msg.as_bytes())
+    except Exception:
+        pass  # No interrumpir la app si el email falla
+
+
+def _run_deep_research(job_results: dict, job_id: str, query: str):
+    """Hilo background: llama al Deep Research API de Google y guarda el resultado."""
+    if _genai_client is None:
+        job_results[job_id] = {"status": "failed", "error": "GEMINI_API_KEY no configurada."}
+        return
+    try:
+        full_input = f"{SYSTEM_PROMPT}\n\n{query}"
+        interaction = _genai_client.interactions.create(
+            input=full_input,
+            agent="deep-research-preview-04-2026",
+            background=True,
+        )
+        for _ in range(120):  # máximo 20 minutos (120 × 10 s)
+            result = _genai_client.interactions.get(interaction.id)
+            status = str(result.status).lower()
+            if "completed" in status:
+                # Extraer todo el texto de los outputs
+                report_parts = []
+                for output in (result.outputs or []):
+                    text = getattr(output, "text", None)
+                    if text:
+                        report_parts.append(text)
+                report = "\n\n".join(report_parts)
+                if not report:
+                    report = "El informe se generó pero no contiene texto."
+                job_results[job_id] = {"status": "completed", "report": report}
+                _send_report_email(query, report)
+                return
+            elif "failed" in status or "error" in status:
+                job_results[job_id] = {
+                    "status": "failed",
+                    "error": str(getattr(result, "error", "Error desconocido")),
+                }
+                return
+            time.sleep(10)
+        job_results[job_id] = {"status": "failed", "error": "Tiempo máximo superado (20 min)."}
+    except Exception as exc:
+        job_results[job_id] = {"status": "failed", "error": str(exc)}
 
 # ── Date calculations ────────────────────────────────────────────────────────
 _MONTHS_ES = {
@@ -193,13 +284,6 @@ st.markdown(
 st.markdown("### Hola Miquel, ¿qué quieres investigar hoy?")
 st.markdown("---")
 
-if not api_key:
-    st.error(
-        "⚠️ No se ha encontrado la clave de API de Google Gemini. "
-        "Por favor, añade GEMINI_API_KEY a tus variables de entorno o a "
-        "los secretos de Streamlit antes de continuar."
-    )
-
 # ── Quick-access buttons ─────────────────────────────────────────────────────
 st.markdown("**Acceso rápido — haz clic para rellenar la pregunta:**")
 
@@ -238,12 +322,13 @@ query = st.text_area(
 generate_clicked = st.button(
     "🔍 Generar Informe de Investigación",
     type="primary",
-    disabled=client is None,
 )
 
-# ── Session state: lista de trabajos ─────────────────────────────────────────
+# ── Session state: lista de trabajos ─────────────────────────────────────────────
 if "jobs" not in st.session_state:
     st.session_state["jobs"] = []
+if "_job_results" not in st.session_state:
+    st.session_state["_job_results"] = {}
 
 # ── PDF helper ────────────────────────────────────────────────────────────────
 from fpdf import FPDF
@@ -251,45 +336,54 @@ from fpdf import FPDF
 
 def _build_pdf(title: str, body: str) -> bytes:
     pdf = FPDF()
+    pdf.set_margins(15, 15, 15)
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
-    pdf.set_font("Helvetica", "B", 18)
-    pdf.multi_cell(0, 10, title.encode("latin-1", errors="replace").decode("latin-1"), align="C")
+    pdf.set_font("Helvetica", "B", 16)
+    safe_title = title.encode("latin-1", errors="replace").decode("latin-1")
+    pdf.multi_cell(0, 10, safe_title, align="C")
     pdf.ln(6)
-    pdf.set_font("Helvetica", "", 12)
+    pdf.set_font("Helvetica", "", 11)
+    page_width = pdf.w - pdf.l_margin - pdf.r_margin
     for line in body.splitlines():
+        # Break lines that are too long (e.g. URLs) into chunks of 90 chars
         safe = line.encode("latin-1", errors="replace").decode("latin-1")
-        pdf.multi_cell(0, 7, safe)
-    return pdf.output()
-
+        if not safe.strip():
+            pdf.ln(4)
+            continue
+        # Split very long words so they don't overflow
+        words = safe.split(" ")
+        chunked = []
+        for word in words:
+            while len(word) > 90:
+                chunked.append(word[:90])
+                word = word[90:]
+            chunked.append(word)
+        safe = " ".join(chunked)
+        pdf.multi_cell(page_width, 6, safe)
+    return bytes(pdf.output())
 
 # ── Lanzar nuevo trabajo al hacer clic ───────────────────────────────────────
 if generate_clicked:
     if not query.strip():
         st.warning("✏️  Por favor, escribe qué quieres investigar antes de continuar.")
     else:
-        full_prompt = (
-            SYSTEM_PROMPT + "\n\n" + query.strip()
-            + "\n\nPor favor, redacta el informe en español, "
-            "con secciones numeradas, tablas donde sea útil, "
-            "y un resumen final. Incluye las fuentes consultadas al final."
-        )
-        try:
-            interaction = client.interactions.create(
-                input=full_prompt,
-                agent="deep-research-preview-04-2026",
-                background=True,
-            )
-            st.session_state["jobs"].append({
-                "id": interaction.id,
-                "query": query.strip(),
-                "status": "in_progress",
-                "report": "",
-                "num": len(st.session_state["jobs"]) + 1,
-            })
-            st.rerun()
-        except Exception as exc:
-            st.error(f"❌ Error al iniciar la investigación: {exc}")
+        job_id = str(uuid.uuid4())
+        job_results = st.session_state["_job_results"]
+        job_results[job_id] = {"status": "in_progress"}
+        threading.Thread(
+            target=_run_deep_research,
+            args=(job_results, job_id, query.strip()),
+            daemon=True,
+        ).start()
+        st.session_state["jobs"].append({
+            "id": job_id,
+            "query": query.strip(),
+            "status": "in_progress",
+            "report": "",
+            "num": len(st.session_state["jobs"]) + 1,
+        })
+        st.rerun()
 
 # ── Panel de trabajos (se actualiza cada 10 s automáticamente) ───────────────
 @st.fragment(run_every=10)
@@ -306,20 +400,15 @@ def _render_jobs():
     for i, job in enumerate(jobs):
         # Polling si está en curso
         if job["status"] == "in_progress":
-            try:
-                result = client.interactions.get(job["id"])
-                if result.status == "completed":
-                    report_text = "".join(
-                        o.text for o in result.outputs if hasattr(o, "text") and o.text
-                    )
-                    st.session_state["jobs"][i]["status"] = "completed"
-                    st.session_state["jobs"][i]["report"] = report_text
-                    job = st.session_state["jobs"][i]
-                elif result.status == "failed":
-                    st.session_state["jobs"][i]["status"] = "failed"
-                    job = st.session_state["jobs"][i]
-            except Exception:
-                pass
+            result = st.session_state.get("_job_results", {}).get(job["id"], {})
+            if result.get("status") == "completed":
+                st.session_state["jobs"][i]["status"] = "completed"
+                st.session_state["jobs"][i]["report"] = result.get("report", "")
+                job = st.session_state["jobs"][i]
+            elif result.get("status") == "failed":
+                st.session_state["jobs"][i]["status"] = "failed"
+                st.session_state["jobs"][i]["error"] = result.get("error", "")
+                job = st.session_state["jobs"][i]
 
         # Renderizar tarjeta
         with st.container(border=True):
@@ -341,11 +430,14 @@ def _render_jobs():
                         key=f"pdf_{job['id']}",
                         use_container_width=True,
                     )
+                st.caption("💰 Coste estimado de este informe: ~$1 – $3")
                 safe = html_lib.escape(job["report"]).replace("\n", "<br>")
                 st.markdown(f'<div id="area-informe">{safe}</div>', unsafe_allow_html=True)
 
             elif job["status"] == "failed":
                 st.error(f"❌ Informe {job['num']} falló — {job['query'][:80]}")
+                if job.get("error"):
+                    st.caption(f"Error: {job['error'][:300]}")
 
 
 _render_jobs()

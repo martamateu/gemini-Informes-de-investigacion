@@ -1,0 +1,30 @@
+name: Informes semanales de Miquel
+
+on:
+  schedule:
+    # Cada lunes a las 16:00 hora española (UTC+2 en verano → 14:00 UTC)
+    - cron: "0 14 * * 1"
+  workflow_dispatch:  # permite lanzarlo manualmente desde GitHub
+
+jobs:
+  generar-informes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Generar y enviar informes
+        env:
+          GEMINI_API_KEY:  ${{ secrets.GEMINI_API_KEY }}
+          EMAIL_SENDER:    ${{ secrets.EMAIL_SENDER }}
+          EMAIL_PASSWORD:  ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
+        run: python weekly.py
