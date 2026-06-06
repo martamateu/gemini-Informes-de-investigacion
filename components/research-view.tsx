@@ -1,6 +1,6 @@
 'use client'
 
-import { Search, TrendingDown, TrendingUp } from 'lucide-react'
+import { Pencil, Search, TrendingDown, TrendingUp, X } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ReportCard, type Report } from '@/components/report-card'
@@ -51,7 +51,14 @@ export function ResearchView() {
   const [streaming, setStreaming] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [reports, setReports] = useState<Report[]>([])
+  const [showInput, setShowInput] = useState(false)
   const resultsRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  function openInput() {
+    setShowInput(true)
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }
 
   async function runResearch(query: string) {
     const q = query.trim()
@@ -128,8 +135,9 @@ export function ResearchView() {
       <div className="mb-6 grid gap-4">
         <button
           type="button"
-          onClick={() => setInput(queryMercados)}
-          className="flex items-center gap-4 rounded-3xl border border-border bg-card p-6 text-left shadow-sm transition-colors hover:bg-accent/50 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => { setShowInput(false); setInput(''); runResearch(queryMercados) }}
+          disabled={loading}
+          className="flex items-center gap-4 rounded-3xl border border-border bg-card p-6 text-left shadow-sm transition-colors hover:bg-accent/50 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
           <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary">
             <TrendingUp className="h-8 w-8" aria-hidden />
@@ -146,8 +154,9 @@ export function ResearchView() {
 
         <button
           type="button"
-          onClick={() => setInput(queryFinancieros)}
-          className="flex items-center gap-4 rounded-3xl border border-border bg-card p-6 text-left shadow-sm transition-colors hover:bg-accent/50 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => { setShowInput(false); setInput(''); runResearch(queryFinancieros) }}
+          disabled={loading}
+          className="flex items-center gap-4 rounded-3xl border border-border bg-card p-6 text-left shadow-sm transition-colors hover:bg-accent/50 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
           <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary">
             <TrendingDown className="h-8 w-8" aria-hidden />
@@ -163,27 +172,51 @@ export function ResearchView() {
         </button>
       </div>
 
-      {/* Input */}
-      <label htmlFor="query" className="mb-3 block text-xl font-medium">
-        Escribe o edita tu pregunta:
-      </label>
-      <textarea
-        id="query"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        rows={4}
-        placeholder="Por ejemplo: ¿Cómo van los mercados esta semana?"
-        className="mb-5 w-full resize-none rounded-3xl border-2 border-input bg-card px-5 py-4 text-xl leading-relaxed text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      />
-
-      <Button
-        onClick={() => runResearch(input)}
-        disabled={loading || !input.trim()}
-        className="h-20 w-full gap-3 rounded-3xl text-2xl font-bold shadow-md"
-      >
-        <Search className="h-7 w-7" aria-hidden />
-        Generar Informe
-      </Button>
+      {/* Input colapsable */}
+      {!showInput ? (
+        <button
+          type="button"
+          onClick={openInput}
+          disabled={loading}
+          className="mb-2 flex w-full items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-border bg-card p-5 text-xl font-semibold text-muted-foreground transition-colors hover:border-primary hover:text-primary active:scale-[0.98] disabled:opacity-50"
+        >
+          <Pencil className="h-6 w-6" aria-hidden />
+          Escribir otra pregunta
+        </button>
+      ) : (
+        <div className="mb-2">
+          <div className="mb-3 flex items-center justify-between">
+            <label htmlFor="query" className="text-xl font-medium">
+              Escribe tu pregunta:
+            </label>
+            <button
+              type="button"
+              onClick={() => { setShowInput(false); setInput('') }}
+              className="flex items-center gap-1 rounded-full px-3 py-1 text-base text-muted-foreground hover:text-foreground"
+              aria-label="Cerrar"
+            >
+              <X className="h-5 w-5" /> Cerrar
+            </button>
+          </div>
+          <textarea
+            ref={inputRef}
+            id="query"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            rows={4}
+            placeholder="Por ejemplo: ¿Cómo van los mercados esta semana?"
+            className="mb-5 w-full resize-none rounded-3xl border-2 border-input bg-card px-5 py-4 text-xl leading-relaxed text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <Button
+            onClick={() => runResearch(input)}
+            disabled={loading || !input.trim()}
+            className="h-20 w-full gap-3 rounded-3xl text-2xl font-bold shadow-md"
+          >
+            <Search className="h-7 w-7" aria-hidden />
+            Generar Informe
+          </Button>
+        </div>
+      )}
 
       {error && (
         <p
