@@ -44,10 +44,11 @@ export async function POST(req: Request) {
   }
 
   const result = streamText({
-    model: google('gemini-2.5-flash'),
+    model: google('gemini-2.5-pro'),
     system: SYSTEM_PROMPT,
     prompt: query,
-    temperature: 0.4,
+    temperature: 1, // required for gemini-2.5-pro with search
+    tools: { googleSearch: google.tools.googleSearch() },
   })
 
   try {

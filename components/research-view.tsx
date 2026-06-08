@@ -52,12 +52,25 @@ export function ResearchView() {
   const [error, setError] = useState<string | null>(null)
   const [reports, setReports] = useState<Report[]>([])
   const [showInput, setShowInput] = useState(false)
+  const [pendingQuery, setPendingQuery] = useState<string | null>(null)
   const resultsRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   function openInput() {
     setShowInput(true)
     setTimeout(() => inputRef.current?.focus(), 50)
+  }
+
+  function requestResearch(query: string) {
+    if (!query.trim() || loading) return
+    setPendingQuery(query.trim())
+  }
+
+  function confirmResearch() {
+    if (!pendingQuery) return
+    const q = pendingQuery
+    setPendingQuery(null)
+    runResearch(q)
   }
 
   async function runResearch(query: string) {
@@ -99,6 +112,7 @@ export function ResearchView() {
       setReports((prev) => [report, ...prev])
       setStreaming('')
       setInput('')
+      setShowInput(false)
     } catch (e) {
       setError(
         e instanceof Error
@@ -135,7 +149,7 @@ export function ResearchView() {
       <div className="mb-6 grid gap-4">
         <button
           type="button"
-          onClick={() => { setShowInput(false); setInput(''); runResearch(queryMercados) }}
+          onClick={() => { setShowInput(false); setInput(''); requestResearch(queryMercados) }}
           disabled={loading}
           className="flex items-center gap-4 rounded-3xl border border-border bg-card p-6 text-left shadow-sm transition-colors hover:bg-accent/50 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
@@ -154,7 +168,7 @@ export function ResearchView() {
 
         <button
           type="button"
-          onClick={() => { setShowInput(false); setInput(''); runResearch(queryFinancieros) }}
+          onClick={() => { setShowInput(false); setInput(''); requestResearch(queryFinancieros) }}
           disabled={loading}
           className="flex items-center gap-4 rounded-3xl border border-border bg-card p-6 text-left shadow-sm transition-colors hover:bg-accent/50 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
@@ -208,7 +222,7 @@ export function ResearchView() {
             className="mb-5 w-full resize-none rounded-3xl border-2 border-input bg-card px-5 py-4 text-xl leading-relaxed text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <Button
-            onClick={() => runResearch(input)}
+            onClick={() => requestResearch(input)}
             disabled={loading || !input.trim()}
             className="h-20 w-full gap-3 rounded-3xl text-2xl font-bold shadow-md"
           >
@@ -225,6 +239,43 @@ export function ResearchView() {
         >
           {error}
         </p>
+      )}
+
+      {/* Confirmación de coste */}
+      {pendingQuery && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6"
+        >
+          <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-2xl">
+            <p className="mb-2 text-5xl text-center">💰</p>
+            <h2 className="mb-3 text-center text-2xl font-bold text-foreground">
+              Este informe cuesta
+            </h2>
+            <p className="mb-6 text-center text-5xl font-extrabold text-primary">
+              ~3 €
+            </p>
+            <p className="mb-8 text-center text-lg text-muted-foreground">
+              Se usará Gemini Deep Research para buscar información actualizada en internet.
+            </p>
+            <div className="flex flex-col gap-3">
+              <Button
+                onClick={confirmResearch}
+                className="h-16 w-full rounded-3xl text-xl font-bold"
+              >
+                Sí, generar el informe
+              </Button>
+              <button
+                type="button"
+                onClick={() => setPendingQuery(null)}
+                className="h-14 w-full rounded-3xl border-2 border-border text-xl font-semibold text-muted-foreground hover:border-primary hover:text-foreground"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Results */}
