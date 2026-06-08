@@ -88,32 +88,48 @@ export async function GET(req: Request) {
     const status = r.status as string
     const error = r.error as string | undefined
 
-    // output_text es el atajo del SDK; si es null, extraer de steps (breaking change mayo 2026)
+    // 1. output_text: atajo del SDK
     let text: string | null = (r.output_text as string) ?? null
 
+    // 2. steps[] (breaking change mayo 2026)
     if (!text && Array.isArray(r.steps)) {
-      // steps: buscar el último model_output con texto
       const textParts: string[] = []
       for (const step of r.steps as Record<string, unknown>[]) {
-        if (step.type === 'model_output' && Array.isArray(step.content)) {
+        // model_output con content[]
+        if (Array.isArray(step.content)) {
           for (const item of step.content as Record<string, unknown>[]) {
             if (item.type === 'text' && typeof item.text === 'string') {
               textParts.push(item.text)
             }
           }
         }
+        // texto directo en el step
+        if (step.type === 'text' && typeof step.text === 'string') {
+          textParts.push(step.text)
+        }
       }
       if (textParts.length > 0) text = textParts.join('\n')
     }
 
-    // Fallback: outputs[] (formato anterior al breaking change)
+    // 3. outputs[] (formato anterior al breaking change)
     if (!text && Array.isArray(r.outputs)) {
       const outputs = r.outputs as Record<string, unknown>[]
       const last = outputs.at(-1)
       if (last?.text) text = last.text as string
     }
 
-    return Response.json({ status, text, error: error ?? null })
+    // 4. debug: si sigue null, devolver las claves del objeto para diagnosticar
+    const debug = (!text && status === 'completed')
+      ? {
+          keys: Object.keys(r),
+          stepsCount: Array.isArray(r.steps) ? (r.steps as unknown[]).length : 'no steps',
+          outputsCount: Array.isArray(r.outputs) ? (r.outputs as unknown[]).length : 'no outputs',
+          firstStep: Array.isArray(r.steps) ? JSON.stringify(r.steps[0]).slice(0, 200) : null,
+          firstOutput: Array.isArray(r.outputs) ? JSON.stringify((r.outputs as unknown[])[0]).slice(0, 200) : null,
+        }
+      : undefined
+
+    return Response.json({ status, text, error: error ?? null, debug })
   } catch (e: unknown) {
     return Response.json(
       { error: e instanceof Error ? e.message : 'Error al consultar' },
