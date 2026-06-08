@@ -2,36 +2,43 @@ import { GoogleGenAI } from '@google/genai'
 
 export const maxDuration = 300
 
-const INSTRUCCIONES = `Redacta un informe de investigación exhaustivo y detallado en español sobre el siguiente tema. 
+const INSTRUCCIONES = `Redacta un informe de investigación exhaustivo y muy detallado en español sobre el siguiente tema. El informe debe tener un mínimo de 16 páginas y tantas como sean necesarias para cubrir el tema en profundidad.
 
-El informe debe ser completo, con análisis profundo, datos concretos, cifras actualizadas y citas de fuentes fiables. Investiga a fondo: consulta múltiples fuentes, analiza tendencias, compara datos y extrae conclusiones fundamentadas.
+No escatimes en detalle. Investiga a fondo consultando el mayor número posible de fuentes. Analiza tendencias históricas y actuales, compara datos, incluye cifras concretas y actualizadas, cita expertos y estudios, y extrae conclusiones fundamentadas. Cada sección debe ser extensa y bien desarrollada.
 
 Estructura el informe con el siguiente formato Markdown:
 
 # [Título del informe]
 
 ## Resumen ejecutivo
-(Síntesis de los hallazgos más importantes, 10-15 líneas)
+(Síntesis completa de los hallazgos más importantes, mínimo 15 líneas)
 
-## [Sección 1: primer gran tema]
-(Análisis detallado con datos, cifras y contexto)
+## Contexto y antecedentes
+(Historia, evolución y contexto del tema)
 
-## [Sección 2: segundo gran tema]
+## [Sección temática 1]
+(Análisis detallado con datos, cifras, ejemplos y contexto)
+
+## [Sección temática 2]
 ...
 
-(Añade tantas secciones como sean necesarias para cubrir el tema en profundidad)
+## [Añade todas las secciones temáticas necesarias]
+...
 
 ## Datos y estadísticas clave
-(Tabla o tablas comparativas con los datos más relevantes)
+(Tablas comparativas con los datos más relevantes)
+
+## Perspectivas y tendencias futuras
+(Proyecciones, escenarios posibles, análisis de expertos)
 
 ## Análisis de riesgos e incertidumbres
-(Factores de riesgo, variables desconocidas, escenarios posibles)
+(Factores de riesgo, variables desconocidas, escenarios adversos)
 
 ## Conclusión y recomendaciones
-(Conclusiones claras y recomendaciones accionables)
+(Conclusiones detalladas y recomendaciones accionables)
 
 ## Fuentes consultadas
-(Lista de fuentes con URL cuando sea posible)
+(Lista completa de fuentes con URL cuando sea posible)
 
 ---
 
