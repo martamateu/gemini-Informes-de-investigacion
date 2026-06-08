@@ -48,11 +48,11 @@ export async function POST(req: Request) {
         })
 
         for await (const event of await interaction) {
-          if (event.eventType === 'step.delta') {
+          if (event.event_type === 'step.delta') {
             if (event.delta?.type === 'text') {
-              send({ type: 'text-delta', delta: event.delta.text })
-            } else if (event.delta?.type === 'thought') {
-              send({ type: 'thought', text: event.delta.text })
+              send({ type: 'text-delta', delta: (event.delta as { text: string }).text })
+            } else if (event.delta?.type === 'thought_summary') {
+              send({ type: 'thought', text: (event.delta as { text: string }).text })
             }
           }
         }
