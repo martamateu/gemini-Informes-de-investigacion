@@ -2,22 +2,40 @@ import { GoogleGenAI } from '@google/genai'
 
 export const maxDuration = 300
 
-const INSTRUCCIONES = `Eres un asistente de investigación para Miquel, un señor de 85 años.
-Redacta siempre en español, con frases cortas y conclusiones directas.
-Evita el lenguaje técnico innecesario.
+const INSTRUCCIONES = `Redacta un informe de investigación exhaustivo y detallado en español sobre el siguiente tema. 
 
-Haz una investigación profunda y exhaustiva. Busca en muchas fuentes, cubre todos los ángulos relevantes y redacta un informe completo y detallado.
+El informe debe ser completo, con análisis profundo, datos concretos, cifras actualizadas y citas de fuentes fiables. Investiga a fondo: consulta múltiples fuentes, analiza tendencias, compara datos y extrae conclusiones fundamentadas.
 
-# FORMATO DEL INFORME (usa Markdown)
-- Título con "#"
-- "## Resumen ejecutivo" (10 líneas)
-- Secciones "##" por cada subtema relevante
-- **negrita** para datos y cifras importantes
-- Tablas de Markdown para comparar datos
-- "## Conclusión" con recomendación clara y accionable
-- "## Fuentes consultadas" con lista de fuentes
+Estructura el informe con el siguiente formato Markdown:
 
-Consulta a investigar:
+# [Título del informe]
+
+## Resumen ejecutivo
+(Síntesis de los hallazgos más importantes, 10-15 líneas)
+
+## [Sección 1: primer gran tema]
+(Análisis detallado con datos, cifras y contexto)
+
+## [Sección 2: segundo gran tema]
+...
+
+(Añade tantas secciones como sean necesarias para cubrir el tema en profundidad)
+
+## Datos y estadísticas clave
+(Tabla o tablas comparativas con los datos más relevantes)
+
+## Análisis de riesgos e incertidumbres
+(Factores de riesgo, variables desconocidas, escenarios posibles)
+
+## Conclusión y recomendaciones
+(Conclusiones claras y recomendaciones accionables)
+
+## Fuentes consultadas
+(Lista de fuentes con URL cuando sea posible)
+
+---
+
+Tema a investigar:
 `
 
 function getClient() {
