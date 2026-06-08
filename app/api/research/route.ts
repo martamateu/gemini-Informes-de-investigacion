@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai'
 
-export const maxDuration = 800
+export const maxDuration = 300
 
 const INSTRUCCIONES = `Eres un asistente de investigación para Miquel, un señor de 85 años.
 Redacta siempre en español, con frases cortas y conclusiones directas.
