@@ -8,33 +8,6 @@ import { ResearchLoading } from '@/components/research-loading'
 import { ReportMarkdown } from '@/components/report-markdown'
 import { fullDateEs, shortDateEs, weekRange } from '@/lib/dates'
 
-async function* parseSSEStream(response: Response) {
-  if (!response.body) throw new Error('Sin respuesta del servidor')
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() || ''
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (trimmed.startsWith('data:')) {
-        const data = trimmed.slice(5).trim()
-        if (data === '[DONE]') return
-        try {
-          yield JSON.parse(data)
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-  }
-}
-
 export function ResearchView() {
   const today = useMemo(() => new Date(), [])
   const { tuesday, friday } = useMemo(() => weekRange(today), [today])
@@ -81,33 +54,58 @@ export function ResearchView() {
     setError(null)
     setLoading(true)
     setStreaming('')
-    setThought('')
+    setThought('Iniciando investigación...')
     setTimeout(
       () => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }),
       100,
     )
 
     try {
-      const res = await fetch('/api/research', {
+      // 1. Iniciar investigación → recibir ID inmediatamente
+      const startRes = await fetch('/api/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: q }),
       })
-      if (!res.ok) throw new Error('No se pudo generar el informe')
+      const startData = await startRes.json()
+      if (!startRes.ok || startData.error) throw new Error(startData.error || 'No se pudo iniciar')
 
-      let full = ''
-      for await (const chunk of parseSSEStream(res)) {
-        if (chunk.type === 'text-delta' && chunk.delta) {
-          full += chunk.delta
-          setStreaming(full)
-        } else if (chunk.type === 'thought' && chunk.text) {
-          setThought(chunk.text)
-        } else if (chunk.type === 'error') {
-          throw new Error(chunk.message || 'Error en la investigación')
+      const id: string = startData.id
+      setThought('Buscando en la web...')
+
+      // 2. Polling cada 10s hasta completar
+      let elapsed = 0
+      let text = ''
+      while (true) {
+        await new Promise(r => setTimeout(r, 10000))
+        elapsed += 10
+
+        const pollRes = await fetch(`/api/research?id=${id}`)
+        const pollData = await pollRes.json()
+
+        if (pollData.status === 'completed') {
+          text = pollData.text ?? ''
+          break
+        } else if (pollData.status === 'failed') {
+          throw new Error(pollData.error || 'La investigación falló')
         }
+
+        const mins = Math.floor(elapsed / 60)
+        const secs = elapsed % 60
+        setThought(`Investigando... ${mins > 0 ? `${mins}m ` : ''}${secs}s`)
       }
 
-      if (!full.trim()) throw new Error('El informe llegó vacío')
+      if (!text.trim()) throw new Error('El informe llegó vacío')
+
+      // Mostrar el texto simulando streaming
+      setThought('')
+      const chunkSize = 100
+      let full = ''
+      for (let i = 0; i < text.length; i += chunkSize) {
+        full += text.slice(i, i + chunkSize)
+        setStreaming(full)
+        await new Promise(r => setTimeout(r, 16))
+      }
 
       const report: Report = {
         id: crypto.randomUUID(),
