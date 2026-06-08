@@ -73,27 +73,47 @@ export function ResearchView() {
       const id: string = startData.id
       setThought('Buscando en la web... (puede tardar 5-10 minutos)')
 
-      // 2. Polling cada 10s hasta completar
+      // 2. Polling cada 10s hasta completar (máx 100 intentos = ~16 min)
       let elapsed = 0
       let text = ''
-      while (true) {
+      let attempts = 0
+      const MAX_ATTEMPTS = 100
+      
+      while (attempts < MAX_ATTEMPTS) {
         await new Promise(r => setTimeout(r, 10000))
         elapsed += 10
+        attempts++
 
-        const pollRes = await fetch(`/api/research?id=${id}`)
-        const pollData = await pollRes.json()
+        try {
+          const pollRes = await fetch(`/api/research?id=${id}`)
+          if (!pollRes.ok) {
+            console.warn('Poll error:', pollRes.status, 'retrying...')
+            continue // reintentar en el siguiente ciclo
+          }
+          
+          const pollData = await pollRes.json()
 
-        if (pollData.status === 'completed') {
-          text = pollData.text ?? ''
-          break
-        } else if (pollData.status === 'failed') {
-          throw new Error(pollData.error || 'La investigación falló')
+          if (pollData.status === 'completed') {
+            text = pollData.text ?? ''
+            break
+          } else if (pollData.status === 'failed') {
+            throw new Error(pollData.error || 'La investigación falló')
+          }
+
+          const mins = Math.floor(elapsed / 60)
+          const secs = elapsed % 60
+          const progreso = elapsed < 120 ? 'Analizando fuentes...' : elapsed < 300 ? 'Sintetizando información...' : 'Redactando informe...'
+          setThought(`${progreso} ${mins > 0 ? `${mins}m ` : ''}${secs}s`)
+        } catch (err) {
+          console.warn('Poll fetch error:', err, 'retrying...')
+          // Si es un error de red, continuar intentando
+          if (attempts < MAX_ATTEMPTS) continue
+          throw err // si llegamos al límite, propagar error
         }
+      }
 
-        const mins = Math.floor(elapsed / 60)
-        const secs = elapsed % 60
-        const progreso = elapsed < 120 ? 'Analizando fuentes...' : elapsed < 300 ? 'Sintetizando información...' : 'Redactando informe...'
-        setThought(`${progreso} ${mins > 0 ? `${mins}m ` : ''}${secs}s`)
+      if (attempts >= MAX_ATTEMPTS && !text) {
+        throw new Error('La investigación tardó demasiado. Intenta más tarde.')
       }
 
       if (!text.trim()) throw new Error('El informe llegó vacío')
