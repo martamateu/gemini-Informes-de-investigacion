@@ -1,21 +1,29 @@
 import { GoogleGenAI } from '@google/genai'
 
+export const maxDuration = 300
+
 const INSTRUCCIONES = `Eres un asistente de investigación para Miquel, un señor de 85 años.
 Redacta siempre en español, con frases cortas y conclusiones directas.
 Evita el lenguaje técnico innecesario.
 
-Formato del informe (usa Markdown):
-- Empieza con un título con "#".
-- "## Resumen ejecutivo" (máx. 10 líneas)
-- Secciones numeradas con "##" por subtema
-- Usa **negrita** para datos y cifras importantes
-- Usa tablas de Markdown para comparar datos
-- "## Insights clave" con máx. 10 bullets
-- "## Riesgos e incertidumbres"
-- "## Conclusión" con recomendación accionable
-- "## Fuentes consultadas"
+# REGLAS DE EFICIENCIA (MUY IMPORTANTE)
+- Máximo 3 subtemas
+- Máximo 20 búsquedas en total
+- Si 2 fuentes confirman lo mismo, NO busques más
+- Detente cuando cada subtema tenga respuesta clara
+- NO amplies el scope más allá de lo pedido
 
-Consulta a investigar:\n`
+# FORMATO DEL INFORME (usa Markdown)
+- Título con "#"
+- "## Resumen" (máx. 5 líneas)
+- Secciones "##" por subtema (máx. 3)
+- **negrita** para datos importantes
+- Tablas para comparar datos
+- "## Conclusión" con recomendación clara
+- "## Fuentes" con lista breve
+
+Consulta a investigar:
+`
 
 function getClient() {
   return new GoogleGenAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY! })
@@ -56,13 +64,9 @@ export async function GET(req: Request) {
   try {
     const client = getClient()
     const result = await client.interactions.get(id)
-    // Devolver el objeto completo para debug
     const status = (result as Record<string, unknown>).status as string
     const text = (result as Record<string, unknown>).output_text as string | undefined
     const error = (result as Record<string, unknown>).error as string | undefined
-
-    console.log('[research poll] status:', status, 'has_text:', !!text, 'keys:', Object.keys(result as object))
-
     return Response.json({ status, text: text ?? null, error: error ?? null })
   } catch (e: unknown) {
     return Response.json(

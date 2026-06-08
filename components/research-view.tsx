@@ -54,7 +54,7 @@ export function ResearchView() {
     setError(null)
     setLoading(true)
     setStreaming('')
-    setThought('Iniciando investigación...')
+    setThought('Iniciando investigación profunda...')
     setTimeout(
       () => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }),
       100,
@@ -71,7 +71,7 @@ export function ResearchView() {
       if (!startRes.ok || startData.error) throw new Error(startData.error || 'No se pudo iniciar')
 
       const id: string = startData.id
-      setThought('Buscando en la web...')
+      setThought('Buscando en la web... (puede tardar 5-10 minutos)')
 
       // 2. Polling cada 10s hasta completar
       let elapsed = 0
@@ -92,7 +92,8 @@ export function ResearchView() {
 
         const mins = Math.floor(elapsed / 60)
         const secs = elapsed % 60
-        setThought(`Investigando... ${mins > 0 ? `${mins}m ` : ''}${secs}s [${pollData.status ?? '?'}]`)
+        const progreso = elapsed < 120 ? 'Analizando fuentes...' : elapsed < 300 ? 'Sintetizando información...' : 'Redactando informe...'
+        setThought(`${progreso} ${mins > 0 ? `${mins}m ` : ''}${secs}s`)
       }
 
       if (!text.trim()) throw new Error('El informe llegó vacío')
@@ -258,10 +259,10 @@ export function ResearchView() {
               Este informe cuesta
             </h2>
             <p className="mb-6 text-center text-5xl font-extrabold text-primary">
-              ~3 €
+              ~1-3 €
             </p>
             <p className="mb-8 text-center text-lg text-muted-foreground">
-              Se usará Gemini Deep Research para buscar información actualizada en internet.
+              Se usará Gemini Deep Research para buscar información actualizada en internet. El proceso tarda entre 5 y 20 minutos.
             </p>
             <div className="flex flex-col gap-3">
               <Button
