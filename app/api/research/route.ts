@@ -41,7 +41,7 @@ export async function POST(req: Request) {
           agent: 'deep-research-preview-04-2026',
           background: true,
           stream: true,
-          agentConfig: { type: 'deep-research', thinkingSummaries: 'auto' },
+          agent_config: { type: 'deep-research', thinking_summaries: 'auto' },
         })
 
         for await (const event of await interaction) {
