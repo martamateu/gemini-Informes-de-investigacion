@@ -88,8 +88,10 @@ export async function GET(req: Request) {
     const status = r.status as string
     const error = r.error as string | undefined
 
-    // 1. output_text: atajo del SDK
-    let text: string | null = (r.output_text as string) ?? null
+    // 1. output_text: atajo del SDK (puede ser string vacío en vez de null)
+    let text: string | null = (r.output_text && typeof r.output_text === 'string' && r.output_text.trim())
+      ? r.output_text
+      : null
 
     // 2. steps[] (breaking change mayo 2026)
     if (!text && Array.isArray(r.steps)) {
@@ -98,7 +100,8 @@ export async function GET(req: Request) {
         // model_output con content[]
         if (Array.isArray(step.content)) {
           for (const item of step.content as Record<string, unknown>[]) {
-            if (item.type === 'text' && typeof item.text === 'string') {
+            // puede tener type='text' o simplemente tener .text directamente
+            if (typeof item.text === 'string' && item.text.trim()) {
               textParts.push(item.text)
             }
           }
