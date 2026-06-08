@@ -29,13 +29,22 @@ export async function POST(req: Request) {
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
     async start(controller) {
+      let closed = false
+
       function send(data: object) {
+        if (closed) return
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
       }
 
       // Ping cada 20s para mantener la conexión viva en Railway
       const pingInterval = setInterval(() => {
-        controller.enqueue(encoder.encode(': ping\n\n'))
+        if (closed) { clearInterval(pingInterval); return }
+        try {
+          controller.enqueue(encoder.encode(': ping\n\n'))
+        } catch {
+          closed = true
+          clearInterval(pingInterval)
+        }
       }, 20000)
 
       try {
@@ -60,8 +69,11 @@ export async function POST(req: Request) {
         send({ type: 'error', message: e instanceof Error ? e.message : 'Error desconocido' })
       } finally {
         clearInterval(pingInterval)
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'))
-        controller.close()
+        closed = true
+        try {
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+          controller.close()
+        } catch { /* ya cerrado */ }
       }
     },
   })
