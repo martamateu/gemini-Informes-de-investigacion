@@ -33,48 +33,77 @@ export async function POST(req: Request) {
 
       function send(data: object) {
         if (closed) return
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
+        try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)) } catch { closed = true }
       }
 
-      // Ping cada 20s para mantener la conexión viva en Railway
-      const pingInterval = setInterval(() => {
-        if (closed) { clearInterval(pingInterval); return }
-        try {
-          controller.enqueue(encoder.encode(': ping\n\n'))
-        } catch {
-          closed = true
-          clearInterval(pingInterval)
-        }
-      }, 20000)
+      function ping() {
+        if (closed) return
+        try { controller.enqueue(encoder.encode(': ping\n\n')) } catch { closed = true }
+      }
 
-      try {
-        const interaction = client.interactions.create({
-          input: INSTRUCCIONES + query,
-          agent: 'deep-research-preview-04-2026',
-          background: true,
-          store: true,
-          stream: true,
-          agent_config: { type: 'deep-research', thinking_summaries: 'auto' },
-        })
-
-        for await (const event of await interaction) {
-          if (event.event_type === 'step.delta') {
-            if (event.delta?.type === 'text') {
-              send({ type: 'text-delta', delta: (event.delta as { text: string }).text })
-            } else if (event.delta?.type === 'thought_summary') {
-              send({ type: 'thought', text: (event.delta as { text: string }).text })
-            }
-          }
-        }
-      } catch (e: unknown) {
-        send({ type: 'error', message: e instanceof Error ? e.message : 'Error desconocido' })
-      } finally {
-        clearInterval(pingInterval)
+      function done() {
+        if (closed) return
         closed = true
         try {
           controller.enqueue(encoder.encode('data: [DONE]\n\n'))
           controller.close()
         } catch { /* ya cerrado */ }
+      }
+
+      try {
+        // 1. Lanzar investigación en background
+        const interaction = await client.interactions.create({
+          input: INSTRUCCIONES + query,
+          agent: 'deep-research-preview-04-2026',
+          background: true,
+          store: true,
+          agent_config: { type: 'deep-research', thinking_summaries: 'auto' },
+        })
+
+        const id = (interaction as { id: string }).id
+        send({ type: 'thought', text: 'Investigación iniciada. Buscando en la web...' })
+
+        // 2. Polling cada 10s hasta completar
+        let attempts = 0
+        const maxAttempts = 120 // 20 minutos máximo
+
+        while (attempts < maxAttempts) {
+          await new Promise(r => setTimeout(r, 10000))
+          if (closed) return
+
+          ping()
+
+          const result = await client.interactions.get(id)
+          const status = (result as { status: string }).status
+
+          if (status === 'completed') {
+            const text = (result as { output_text?: string }).output_text
+            if (text) {
+              // Enviar el texto en chunks para simular streaming
+              const chunkSize = 200
+              for (let i = 0; i < text.length; i += chunkSize) {
+                send({ type: 'text-delta', delta: text.slice(i, i + chunkSize) })
+              }
+            }
+            break
+          } else if (status === 'failed') {
+            const err = (result as { error?: string }).error
+            send({ type: 'error', message: err || 'La investigación falló' })
+            break
+          }
+
+          // Actualizar pensamiento con progreso
+          send({ type: 'thought', text: `Investigando... (${Math.round(attempts * 10 / 60)} min)` })
+          attempts++
+        }
+
+        if (attempts >= maxAttempts) {
+          send({ type: 'error', message: 'Tiempo máximo de investigación alcanzado' })
+        }
+      } catch (e: unknown) {
+        send({ type: 'error', message: e instanceof Error ? e.message : 'Error desconocido' })
+      } finally {
+        done()
       }
     },
   })
