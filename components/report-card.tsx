@@ -114,15 +114,26 @@ ${body}
             {report.query}
           </p>
         </div>
-        <Button
-          onClick={handlePrint}
-          size="lg"
-          variant="secondary"
-          className="h-14 shrink-0 gap-2 rounded-full px-6 text-lg font-semibold"
-        >
-          <Printer className="h-6 w-6" aria-hidden />
-          Imprimir PDF
-        </Button>
+        <div className="flex shrink-0 gap-2">
+          <Button
+            onClick={handleShare}
+            size="lg"
+            variant="secondary"
+            className="h-14 gap-2 rounded-full px-6 text-lg font-semibold"
+          >
+            <Share2 className="h-6 w-6" aria-hidden />
+            Compartir
+          </Button>
+          <Button
+            onClick={handlePrint}
+            size="lg"
+            variant="secondary"
+            className="h-14 gap-2 rounded-full px-6 text-lg font-semibold"
+          >
+            <Printer className="h-6 w-6" aria-hidden />
+            Imprimir PDF
+          </Button>
+        </div>
       </header>
       <div className="px-5 py-6 sm:px-7">
         <ReportMarkdown content={report.content} />
