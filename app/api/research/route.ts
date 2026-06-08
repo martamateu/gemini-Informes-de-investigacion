@@ -1,29 +1,15 @@
-import { streamText } from 'ai'
-import { google } from '@ai-sdk/google'
+import { GoogleGenAI } from '@google/genai'
 
-export const maxDuration = 120
+export const maxDuration = 800
 
-const SYSTEM_PROMPT = `Eres un sistema de Deep Research optimizado para coste y eficiencia, redactando informes para Miquel, un señor de 85 años.
-Redacta siempre en español, con frases cortas y conclusiones directas. Evita el lenguaje técnico innecesario.
+const INSTRUCCIONES = `Eres un asistente de investigación para Miquel, un señor de 85 años.
+Redacta siempre en español, con frases cortas y conclusiones directas.
+Evita el lenguaje técnico innecesario.
 
-# PROCESO OBLIGATORIO
-
-## 1. PLANIFICACIÓN
-Antes de responder, divide el tema en:
-- Máximo 5 subtemas
-- Máximo 3 preguntas clave por subtema
-- Prioriza fuentes de alta calidad
-
-## 2. CRITERIO DE PARADA
-Detén la investigación inmediatamente si:
-- Cada subtema tiene respuesta clara
-- Hay al menos 2 fuentes confiables por subtema
-- No hay contradicciones críticas sin resolver
-
-## 3. FORMATO DEL INFORME (usa Markdown)
-- Empieza con un título con "#"
+Formato del informe (usa Markdown):
+- Empieza con un título con "#".
 - "## Resumen ejecutivo" (máx. 10 líneas)
-- "##" para cada subtema numerado
+- Secciones numeradas con "##" por subtema
 - Usa **negrita** para datos y cifras importantes
 - Usa tablas de Markdown para comparar datos
 - "## Insights clave" con máx. 10 bullets
@@ -31,10 +17,7 @@ Detén la investigación inmediatamente si:
 - "## Conclusión" con recomendación accionable
 - "## Fuentes consultadas"
 
-# OPTIMIZACIÓN DE COSTE
-- Evita contenido redundante
-- No expandas el informe innecesariamente
-- Maximiza calidad de insights por token consumido`
+Consulta a investigar:\n`
 
 export async function POST(req: Request) {
   const { query } = await req.json()
@@ -43,20 +26,47 @@ export async function POST(req: Request) {
     return new Response('Falta la consulta', { status: 400 })
   }
 
-  const result = streamText({
-    model: google('gemini-2.5-pro'),
-    system: SYSTEM_PROMPT,
-    prompt: query,
-    temperature: 1, // required for gemini-2.5-pro with search
-    tools: { googleSearch: google.tools.googleSearch() },
+  const client = new GoogleGenAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY! })
+
+  const encoder = new TextEncoder()
+  const stream = new ReadableStream({
+    async start(controller) {
+      function send(data: object) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
+      }
+
+      try {
+        const interaction = client.interactions.create({
+          input: INSTRUCCIONES + query,
+          agent: 'deep-research-preview-04-2026',
+          background: true,
+          stream: true,
+          agentConfig: { type: 'deep-research', thinkingSummaries: 'auto' },
+        })
+
+        for await (const event of await interaction) {
+          if (event.eventType === 'step.delta') {
+            if (event.delta?.type === 'text') {
+              send({ type: 'text-delta', delta: event.delta.text })
+            } else if (event.delta?.type === 'thought') {
+              send({ type: 'thought', text: event.delta.text })
+            }
+          }
+        }
+      } catch (e: unknown) {
+        send({ type: 'error', message: e instanceof Error ? e.message : 'Error desconocido' })
+      } finally {
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+        controller.close()
+      }
+    },
   })
 
-  try {
-    await result.consumeStream()
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Error desconocido'
-    return new Response(msg, { status: 500 })
-  }
-
-  return result.toUIMessageStreamResponse()
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    },
+  })
 }

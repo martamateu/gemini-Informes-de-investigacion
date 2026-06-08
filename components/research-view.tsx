@@ -49,6 +49,7 @@ export function ResearchView() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [streaming, setStreaming] = useState('')
+  const [thought, setThought] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [reports, setReports] = useState<Report[]>([])
   const [showInput, setShowInput] = useState(false)
@@ -80,6 +81,7 @@ export function ResearchView() {
     setError(null)
     setLoading(true)
     setStreaming('')
+    setThought('')
     setTimeout(
       () => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }),
       100,
@@ -98,6 +100,10 @@ export function ResearchView() {
         if (chunk.type === 'text-delta' && chunk.delta) {
           full += chunk.delta
           setStreaming(full)
+        } else if (chunk.type === 'thought' && chunk.text) {
+          setThought(chunk.text)
+        } else if (chunk.type === 'error') {
+          throw new Error(chunk.message || 'Error en la investigación')
         }
       }
 
@@ -280,7 +286,7 @@ export function ResearchView() {
 
       {/* Results */}
       <div ref={resultsRef} className="mt-10 flex flex-col gap-8">
-        {loading && !streaming && <ResearchLoading />}
+        {loading && !streaming && <ResearchLoading pensando={thought} />}
 
         {loading && streaming && (
           <article className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">

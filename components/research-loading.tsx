@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { Check, Loader2 } from 'lucide-react'
 
 const PASOS = [
@@ -11,16 +10,7 @@ const PASOS = [
   'Redactando el informe...',
 ]
 
-export function ResearchLoading() {
-  const [activo, setActivo] = useState(0)
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setActivo((p) => (p < PASOS.length - 1 ? p + 1 : p))
-    }, 2600)
-    return () => clearInterval(id)
-  }, [])
-
+export function ResearchLoading({ pensando }: { pensando?: string }) {
   return (
     <section
       aria-live="polite"
@@ -34,46 +24,22 @@ export function ResearchLoading() {
         <h2 className="text-xl font-bold text-foreground">Investigando...</h2>
       </div>
 
-      <ul className="space-y-4">
-        {PASOS.map((paso, i) => {
-          const completado = i < activo
-          const enCurso = i === activo
-          return (
-            <li
-              key={paso}
-              className={`flex items-center gap-3 text-lg transition-opacity ${
-                i <= activo ? 'opacity-100' : 'opacity-40'
-              }`}
-            >
+      {pensando ? (
+        <p className="rounded-2xl bg-accent/40 px-4 py-3 text-base italic text-muted-foreground line-clamp-3">
+          {pensando}
+        </p>
+      ) : (
+        <ul className="space-y-4">
+          {PASOS.map((paso, i) => (
+            <li key={paso} className="flex items-center gap-3 text-lg opacity-60">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center">
-                {completado ? (
-                  <Check className="h-6 w-6 text-primary" aria-hidden />
-                ) : enCurso ? (
-                  <Loader2
-                    className="h-6 w-6 animate-spin text-primary"
-                    aria-hidden
-                  />
-                ) : (
-                  <span className="h-3 w-3 rounded-full bg-muted-foreground/40" />
-                )}
+                <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden />
               </span>
-              <span
-                className={
-                  completado
-                    ? 'text-muted-foreground'
-                    : 'font-medium text-foreground'
-                }
-              >
-                {paso}
-              </span>
+              <span>{paso}</span>
             </li>
-          )
-        })}
-      </ul>
-
-      <p className="mt-6 text-base text-muted-foreground">
-        Esto puede tardar un minuto. Por favor, espera.
-      </p>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }
