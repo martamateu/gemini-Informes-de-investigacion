@@ -52,6 +52,7 @@ export async function POST(req: Request) {
           input: INSTRUCCIONES + query,
           agent: 'deep-research-preview-04-2026',
           background: true,
+          store: true,
           stream: true,
           agent_config: { type: 'deep-research', thinking_summaries: 'auto' },
         })
@@ -81,8 +82,9 @@ export async function POST(req: Request) {
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
     },
   })
 }
