@@ -84,10 +84,36 @@ export async function GET(req: Request) {
   try {
     const client = getClient()
     const result = await client.interactions.get(id)
-    const status = (result as Record<string, unknown>).status as string
-    const text = (result as Record<string, unknown>).output_text as string | undefined
-    const error = (result as Record<string, unknown>).error as string | undefined
-    return Response.json({ status, text: text ?? null, error: error ?? null })
+    const r = result as Record<string, unknown>
+    const status = r.status as string
+    const error = r.error as string | undefined
+
+    // output_text es el atajo del SDK; si es null, extraer de steps (breaking change mayo 2026)
+    let text: string | null = (r.output_text as string) ?? null
+
+    if (!text && Array.isArray(r.steps)) {
+      // steps: buscar el último model_output con texto
+      const textParts: string[] = []
+      for (const step of r.steps as Record<string, unknown>[]) {
+        if (step.type === 'model_output' && Array.isArray(step.content)) {
+          for (const item of step.content as Record<string, unknown>[]) {
+            if (item.type === 'text' && typeof item.text === 'string') {
+              textParts.push(item.text)
+            }
+          }
+        }
+      }
+      if (textParts.length > 0) text = textParts.join('\n')
+    }
+
+    // Fallback: outputs[] (formato anterior al breaking change)
+    if (!text && Array.isArray(r.outputs)) {
+      const outputs = r.outputs as Record<string, unknown>[]
+      const last = outputs.at(-1)
+      if (last?.text) text = last.text as string
+    }
+
+    return Response.json({ status, text, error: error ?? null })
   } catch (e: unknown) {
     return Response.json(
       { error: e instanceof Error ? e.message : 'Error al consultar' },
