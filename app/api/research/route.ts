@@ -33,6 +33,11 @@ export async function POST(req: Request) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
       }
 
+      // Ping cada 20s para mantener la conexión viva en Railway
+      const pingInterval = setInterval(() => {
+        controller.enqueue(encoder.encode(': ping\n\n'))
+      }, 20000)
+
       try {
         const interaction = client.interactions.create({
           input: INSTRUCCIONES + query,
@@ -54,6 +59,7 @@ export async function POST(req: Request) {
       } catch (e: unknown) {
         send({ type: 'error', message: e instanceof Error ? e.message : 'Error desconocido' })
       } finally {
+        clearInterval(pingInterval)
         controller.enqueue(encoder.encode('data: [DONE]\n\n'))
         controller.close()
       }
