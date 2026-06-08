@@ -92,7 +92,7 @@ export function ResearchView() {
 
         const mins = Math.floor(elapsed / 60)
         const secs = elapsed % 60
-        setThought(`Investigando... ${mins > 0 ? `${mins}m ` : ''}${secs}s`)
+        setThought(`Investigando... ${mins > 0 ? `${mins}m ` : ''}${secs}s [${pollData.status ?? '?'}]`)
       }
 
       if (!text.trim()) throw new Error('El informe llegó vacío')

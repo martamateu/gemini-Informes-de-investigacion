@@ -56,10 +56,14 @@ export async function GET(req: Request) {
   try {
     const client = getClient()
     const result = await client.interactions.get(id)
-    const status = (result as { status: string }).status
-    const text = (result as { output_text?: string }).output_text
+    // Devolver el objeto completo para debug
+    const status = (result as Record<string, unknown>).status as string
+    const text = (result as Record<string, unknown>).output_text as string | undefined
+    const error = (result as Record<string, unknown>).error as string | undefined
 
-    return Response.json({ status, text: text ?? null })
+    console.log('[research poll] status:', status, 'has_text:', !!text, 'keys:', Object.keys(result as object))
+
+    return Response.json({ status, text: text ?? null, error: error ?? null })
   } catch (e: unknown) {
     return Response.json(
       { error: e instanceof Error ? e.message : 'Error al consultar' },
